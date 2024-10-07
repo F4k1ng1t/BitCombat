@@ -26,7 +26,9 @@ public class PlayerController : MonoBehaviourPun
     float parryCooldownTimestamp;
     float swingCooldownTimestamp;
 
-    public bool Parrying = false;
+    public bool isParrying = false;
+    public bool isSwinging = false;
+    bool actionable = true;
 
     [Header("Stats")]
     public float moveSpeed;
@@ -34,22 +36,30 @@ public class PlayerController : MonoBehaviourPun
     public float parryCooldown; 
     [Header("Components")]
     public Rigidbody rig;
+    
     void Update()
     {
-        //if (!photonView.IsMine || dead)
-        //    return;
-        if(canMove)
-            Move();
-        if(Input.GetKeyDown(KeyCode.F))
-            tryParry();
-        if(Input.GetMouseButton(0))
-            trySwing();
+        if (!photonView.IsMine || dead)
+            return;
+        if (actionable)
+        {
+            if (canMove)
+                Move();
+            if (Input.GetKeyDown(KeyCode.F))
+                tryParry();
+            if (Input.GetMouseButton(0))
+                trySwing();
+        }
+        
 
         //if none are active remain idle
         animator.SetBool("Idle", !animator.GetBool("Parry") && !animator.GetBool("Run") && !animator.GetBool("SwordSwing"));
-        if (animPlaying("Parry"))
-            Parrying = true;
 
+        if (animPlaying("Parry")) isParrying = true;
+        else isParrying = false;
+
+        if (animPlaying("SwordSwing")) isSwinging = true;
+        else isSwinging = false;
     }
     private void FixedUpdate()
     {
@@ -65,6 +75,11 @@ public class PlayerController : MonoBehaviourPun
         }
         switchAnims("SwordSwing");
         switchAnims("Parry");
+        switchAnims("Hitstun");
+        if (animator.GetCurrentAnimatorStateInfo(0).normalizedTime > 1 && animator.GetCurrentAnimatorStateInfo(0).IsName("Hitstun"))
+        {
+            ExitHitstun();
+        }
     }
     void Move()
     {
@@ -121,7 +136,8 @@ public class PlayerController : MonoBehaviourPun
         if (animator.GetCurrentAnimatorStateInfo(0).normalizedTime > 1 && animator.GetCurrentAnimatorStateInfo(0).IsName(Bool) && !animator.IsInTransition(0))
         {
             animator.SetBool(Bool, false);
-            canMove = true;
+            actionable = true;
+
         }
     }
     void trySwing()
@@ -168,13 +184,25 @@ public class PlayerController : MonoBehaviourPun
             return;
         curHp -= damage;
         curAttackerId = attackerId;
-        // flash the player red
-        photonView.RPC("DamageFlash", RpcTarget.Others);
         // update the health bar UI
         GameUI.instance.UpdateHealthBar();
         // die if no health left
         if (curHp <= 0)
             photonView.RPC("Die", RpcTarget.All);
+    }
+    public void EnterHitstun()
+    {
+        actionable = false;
+        animator.SetBool("SwordSwing",false);
+        animator.SetBool("Parry",false);
+        animator.SetBool("Run", false);
+        animator.SetBool("Hitstun", true);
+        rig.velocity = Vector3.zero;
+    }
+    public void ExitHitstun()
+    {
+        actionable = true;
+        animator.SetBool("Hitstun", false);
     }
     [PunRPC]
     void Die()
