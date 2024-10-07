@@ -4,6 +4,7 @@ using UnityEngine;
 using Photon.Pun;
 using Photon.Realtime;
 using static UnityEngine.GraphicsBuffer;
+using Unity.VisualScripting;
 
 public class PlayerController : MonoBehaviourPun
 {
@@ -15,43 +16,132 @@ public class PlayerController : MonoBehaviourPun
     public int maxHp;
     public int kills;
     public bool dead;
-    private bool flashingDamage;
     public MeshRenderer mr;
-    public PlayerWeapon weapon;
+    public Animator animator;
+    public GameObject Sword;
+    bool canParry = false;
+    bool canMove = true;
+    bool canSwing = false;
+
+    float parryCooldownTimestamp;
+    float swingCooldownTimestamp;
+
+    public bool Parrying = false;
 
     [Header("Stats")]
     public float moveSpeed;
-    public float jumpForce;
+    public float swingCooldown;
+    public float parryCooldown; 
     [Header("Components")]
     public Rigidbody rig;
     void Update()
     {
-        if (!photonView.IsMine || dead)
-            return;
-        Move();
-        if (Input.GetKeyDown(KeyCode.Space))
-            TryJump();
-        if (Input.GetMouseButtonDown(0))
-            weapon.TryShoot();
+        //if (!photonView.IsMine || dead)
+        //    return;
+        if(canMove)
+            Move();
+        if(Input.GetKeyDown(KeyCode.F))
+            tryParry();
+        if(Input.GetMouseButton(0))
+            trySwing();
+
+        //if none are active remain idle
+        animator.SetBool("Idle", !animator.GetBool("Parry") && !animator.GetBool("Run") && !animator.GetBool("SwordSwing"));
+        if (animPlaying("Parry"))
+            Parrying = true;
+
+    }
+    private void FixedUpdate()
+    {
+        if (canParry)
+        {
+            Parry();
+            canParry = false;
+        }
+        if (canSwing)
+        {
+            Swing();
+            canSwing = false;
+        }
+        switchAnims("SwordSwing");
+        switchAnims("Parry");
     }
     void Move()
     {
         // get the input axis
         float x = Input.GetAxis("Horizontal");
         float z = Input.GetAxis("Vertical");
+        bool Run = x != 0 || z != 0;
+        animator.SetBool("Run", Run);
+        
         // calculate a direction relative to where we're facing
         Vector3 dir = (transform.forward * z + transform.right * x) * moveSpeed;
+        if (animPlaying("SwordSwing") || animPlaying("Parry"))
+        {
+            dir = dir / 3;
+        }
         dir.y = rig.velocity.y;
         // set that as our velocity
         rig.velocity = dir;
     }
-    void TryJump()
+    void Parry()
     {
-        // create a ray facing down
-        Ray ray = new Ray(transform.position, Vector3.down);
-        // shoot the raycast
-        if (Physics.Raycast(ray, 1.5f))
-            rig.AddForce(Vector3.up * jumpForce, ForceMode.Impulse);
+        if (animPlaying("Parry"))
+            return;
+        //canMove = false;
+        animator.SetBool("Parry", true);
+    }
+    void Swing()
+    {
+        if (animPlaying("SwordSwing"))
+            return;
+        //canMove = false;
+        
+        animator.SetBool("SwordSwing", true);
+    }
+    void tryParry()
+    {
+        if (Time.time > parryCooldownTimestamp)
+        {
+            parryCooldownTimestamp = Time.time + parryCooldown;
+            canParry = true;
+            Debug.Log("Successful parry");
+        }
+        else
+        {
+            canParry = false;
+            Debug.Log("Failed parry");
+        } 
+            
+        //Debug.Log($"{Time.time}");
+        //Debug.Log("Attempted parry");
+    }
+    void switchAnims(string Bool)
+    {
+        if (animator.GetCurrentAnimatorStateInfo(0).normalizedTime > 1 && animator.GetCurrentAnimatorStateInfo(0).IsName(Bool) && !animator.IsInTransition(0))
+        {
+            animator.SetBool(Bool, false);
+            canMove = true;
+        }
+    }
+    void trySwing()
+    {
+        if (Time.time > swingCooldownTimestamp)
+        {
+            swingCooldownTimestamp = Time.time + swingCooldown;
+            Swing();
+        }
+        else canSwing = false;
+        //Debug.Log($"{Time.time}");
+    }
+    bool animPlaying(string animState)
+    {
+        if (animator.GetCurrentAnimatorStateInfo(0).IsName(animState))
+        {
+            animator.SetBool(animState, false);
+            return true;
+        }
+        return false;
     }
     [PunRPC]
     public void Initialize(Player player)
@@ -85,22 +175,6 @@ public class PlayerController : MonoBehaviourPun
         // die if no health left
         if (curHp <= 0)
             photonView.RPC("Die", RpcTarget.All);
-    }
-    [PunRPC]
-    void DamageFlash()
-    {
-        if (flashingDamage)
-            return;
-        StartCoroutine(DamageFlashCoRoutine());
-        IEnumerator DamageFlashCoRoutine()
-        {
-            flashingDamage = true;
-            Color defaultColor = mr.material.color;
-            mr.material.color = Color.red;
-            yield return new WaitForSeconds(0.05f);
-            mr.material.color = defaultColor;
-            flashingDamage = false;
-        }
     }
     [PunRPC]
     void Die()

@@ -25,7 +25,6 @@ public class GameUI : MonoBehaviour
         healthBar.maxValue = player.maxHp;
         healthBar.value = player.curHp;
         UpdatePlayerInfoText();
-        UpdateAmmoText();
     }
     public void UpdateHealthBar()
     {
@@ -34,10 +33,6 @@ public class GameUI : MonoBehaviour
     public void UpdatePlayerInfoText()
     {
         playerInfoText.text = "<b>Alive:</b> " + GameManager.instance.alivePlayers + "\n<b > Kills:</ b > " + player.kills;
-    }
-    public void UpdateAmmoText()
-    {
-        ammoText.text = player.weapon.curAmmo + " / " + player.weapon.maxAmmo;
     }
     public void SetWinText(string winnerName)
     {

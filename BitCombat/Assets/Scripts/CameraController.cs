@@ -47,7 +47,7 @@ public class CameraController : MonoBehaviour
         else
         {
             // rotate the camera vertically
-            transform.localRotation = Quaternion.Euler(0, 0, -rotY);
+            transform.localRotation = Quaternion.Euler(0, -90, rotY);
             // rotate the player horizontally
             transform.parent.rotation = Quaternion.Euler(transform.rotation.x, rotX, 0);
         }
